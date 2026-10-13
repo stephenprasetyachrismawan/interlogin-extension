@@ -54,8 +54,13 @@ body {
   cursor: pointer;
 }
 
-.ghost {
+.actions {
   margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.ghost {
   padding: 6px 10px;
   border-radius: 999px;
   background: #fff;
@@ -82,12 +87,86 @@ body {
   color: var(--danger);
 }
 
+.editor {
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.editor label {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.editor input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+
+.editor input:focus-visible {
+  outline: 2px solid var(--plum);
+  outline-offset: 1px;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.save,
+.text {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.save {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--plum);
+  color: #fff;
+  font-weight: 650;
+}
+
+.text {
+  padding: 6px 4px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.save:focus-visible,
+.text:focus-visible {
+  outline: 2px solid var(--plum);
+  outline-offset: 2px;
+}
+
 .accounts {
   margin: 0;
   padding: 6px;
-  max-height: 320px;
+  max-height: 280px;
   overflow: auto;
   list-style: none;
+}
+
+.site-name {
+  margin: 8px 8px 2px;
+  color: var(--plum-deep);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.site-name[data-current="true"] {
+  color: var(--ok);
 }
 
 .row {

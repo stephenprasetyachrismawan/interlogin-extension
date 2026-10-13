@@ -1,11 +1,13 @@
 [
   {
-    "name": "Administrator",
+    "site": "https://odoo.example.com",
+    "username": "Administrator",
     "email": "admin@example.com",
     "password": "admin"
   },
   {
-    "name": "Demo User",
+    "site": "https://odoo.example.com",
+    "username": "Demo User",
     "email": "demo@example.com",
     "password": "demo"
   }

@@ -12,16 +12,37 @@
       <p class="title">interlogin</p>
       <p id="session-line" class="session">Checking the active tab…</p>
     </div>
-    <button id="import-button" class="ghost" type="button">Import</button>
+    <div class="actions">
+      <button id="add-button" class="ghost" type="button">Add</button>
+      <button id="import-button" class="ghost" type="button">Import</button>
+    </div>
     <input id="import-file" type="file" accept="application/json,.json" hidden>
   </header>
 
   <p id="status" class="status" hidden></p>
 
+  <form id="account-form" class="editor" hidden>
+    <label>
+      Username
+      <input name="username" type="text" autocomplete="off" placeholder="Optional">
+    </label>
+    <label>
+      Email
+      <input name="email" type="text" autocomplete="off" required>
+    </label>
+    <label>
+      Password
+      <input name="password" type="password" autocomplete="off" required>
+    </label>
+    <div class="editor-actions">
+      <button class="save" type="submit">Save</button>
+      <button id="cancel-add" class="text" type="button">Cancel</button>
+    </div>
+  </form>
+
   <ul id="account-list" class="accounts"></ul>
 
   <footer class="foot">
-    <p>JSON fields: <code>email</code>, <code>password</code>, optional <code>name</code>.</p>
     <p class="brand">interlogin by <a href="https://github.com/stephenprasetyachrismawan" target="_blank" rel="noopener noreferrer">stephenprasetyachrismawan</a></p>
   </footer>
 

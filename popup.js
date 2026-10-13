@@ -1,34 +1,38 @@
-const STORAGE_KEY = "accounts";
+const SITES_KEY = "sites";
+const LEGACY_KEY = "accounts";
 
 const sessionLine = document.querySelector("#session-line");
 const statusLine = document.querySelector("#status");
 const accountList = document.querySelector("#account-list");
+const accountForm = document.querySelector("#account-form");
+const addButton = document.querySelector("#add-button");
 const importButton = document.querySelector("#import-button");
 const importFile = document.querySelector("#import-file");
+const cancelAdd = document.querySelector("#cancel-add");
 
-let accounts = [];
+let sites = {};
 let odooTab = null;
 let busy = false;
 
 document.addEventListener("DOMContentLoaded", init);
+addButton.addEventListener("click", toggleForm);
+cancelAdd.addEventListener("click", closeForm);
+accountForm.addEventListener("submit", saveFromForm);
 importButton.addEventListener("click", () => importFile.click());
 importFile.addEventListener("change", importAccounts);
 accountList.addEventListener("click", onListClick);
 
 async function init() {
-  accounts = await loadAccounts();
+  const stored = await chrome.storage.local.get([SITES_KEY, LEGACY_KEY]);
+  sites = normalizeSites(stored[SITES_KEY]);
+  const legacy = Array.isArray(stored[LEGACY_KEY]) ? stored[LEGACY_KEY] : [];
   odooTab = await detectActiveOdooTab();
-  render();
-}
-
-async function loadAccounts() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  return Array.isArray(stored[STORAGE_KEY]) ? stored[STORAGE_KEY] : [];
-}
-
-async function saveAccounts(nextAccounts) {
-  accounts = nextAccounts;
-  await chrome.storage.local.set({ [STORAGE_KEY]: accounts });
+  if (legacy.length && odooTab && odooTab.origin) {
+    const moved = collectIncoming(legacy, odooTab.origin);
+    applyIncoming(moved.grouped);
+    await chrome.storage.local.set({ [SITES_KEY]: sites });
+    await chrome.storage.local.remove(LEGACY_KEY);
+  }
   render();
 }
 
@@ -49,6 +53,45 @@ async function detectActiveOdooTab() {
   }
 }
 
+function toggleForm() {
+  if (!accountForm.hidden) {
+    closeForm();
+    return;
+  }
+  if (!odooTab || !odooTab.isOdoo || !odooTab.origin) {
+    setStatus("Open an Odoo tab before adding a login.", "error");
+    return;
+  }
+  accountForm.hidden = false;
+  accountForm.elements.username.focus();
+}
+
+function closeForm() {
+  accountForm.reset();
+  accountForm.hidden = true;
+}
+
+async function saveFromForm(event) {
+  event.preventDefault();
+  if (!odooTab || !odooTab.origin) {
+    setStatus("Open an Odoo tab before adding a login.", "error");
+    return;
+  }
+  const username = accountForm.elements.username.value.trim();
+  const email = accountForm.elements.email.value.trim();
+  const password = accountForm.elements.password.value;
+  if (!email || !password) {
+    setStatus("Email and password are required.", "error");
+    return;
+  }
+  const origin = odooTab.origin;
+  sites[origin] = mergeAccounts(sites[origin] || [], [{ username, email, password }]);
+  await chrome.storage.local.set({ [SITES_KEY]: sites });
+  closeForm();
+  render();
+  setStatus(`Saved ${displayName({ username, email })} for ${siteLabel(origin)}.`);
+}
+
 async function importAccounts() {
   const [file] = importFile.files || [];
   importFile.value = "";
@@ -62,51 +105,148 @@ async function importAccounts() {
     setStatus("The file is not valid JSON.", "error");
     return;
   }
-  const incoming = normalizeAccounts(parsed);
-  if (!incoming.length) {
-    setStatus("No accounts found. Each item needs email and password.", "error");
+  const fallback = odooTab && odooTab.origin ? odooTab.origin : "";
+  const incoming = collectIncoming(parsed, fallback);
+  const imported = [...incoming.grouped.values()].reduce((count, rows) => count + rows.length, 0);
+  if (!imported) {
+    setStatus("No accounts found. Each item needs an email, a password, and a site.", "error");
     return;
   }
-  const merged = mergeAccounts(accounts, incoming);
-  await saveAccounts(merged);
-  setStatus(`Imported ${incoming.length} account${incoming.length === 1 ? "" : "s"}.`);
+  applyIncoming(incoming.grouped);
+  await chrome.storage.local.set({ [SITES_KEY]: sites });
+  render();
+  const skipped = incoming.skipped ? ` ${incoming.skipped} skipped.` : "";
+  setStatus(`Imported ${imported} account${imported === 1 ? "" : "s"}.${skipped}`);
 }
 
-function normalizeAccounts(parsed) {
-  const rows = Array.isArray(parsed) ? parsed : parsed && Array.isArray(parsed.users) ? parsed.users : [parsed];
-  const accountsByEmail = new Map();
-  for (const row of rows) {
-    if (!row || typeof row !== "object") {
-      continue;
+function collectIncoming(parsed, fallbackSite) {
+  const grouped = new Map();
+  let skipped = 0;
+
+  function add(row, siteHint) {
+    const account = accountFromRow(row, siteHint || fallbackSite);
+    if (!account) {
+      skipped += 1;
+      return;
     }
-    const email = String(row.email || row.login || "").trim();
-    const password = row.password == null ? "" : String(row.password);
-    if (!email || !password) {
-      continue;
-    }
-    const name = String(row.name || email).trim() || email;
-    accountsByEmail.set(email.toLowerCase(), { name, email, password });
+    const rows = grouped.get(account.site) || [];
+    rows.push(account);
+    grouped.set(account.site, rows);
   }
-  return [...accountsByEmail.values()];
+
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.sites && typeof parsed.sites === "object") {
+    for (const [origin, rows] of Object.entries(parsed.sites)) {
+      if (!Array.isArray(rows)) {
+        skipped += 1;
+        continue;
+      }
+      for (const row of rows) {
+        add(row, origin);
+      }
+    }
+    return { grouped, skipped };
+  }
+
+  const rows = Array.isArray(parsed) ? parsed : parsed && Array.isArray(parsed.users) ? parsed.users : [parsed];
+  for (const row of rows) {
+    add(row, row && (row.site || row.url || row.origin));
+  }
+  return { grouped, skipped };
 }
 
-function mergeAccounts(current, incoming) {
-  const next = current.map((account) => ({ ...account }));
-  const indexByEmail = new Map(next.map((account, index) => [account.email.toLowerCase(), index]));
-  for (const account of incoming) {
-    const key = account.email.toLowerCase();
-    if (indexByEmail.has(key)) {
-      next[indexByEmail.get(key)] = account;
-    } else {
-      indexByEmail.set(key, next.length);
-      next.push(account);
+function applyIncoming(grouped) {
+  for (const [origin, rows] of grouped) {
+    sites[origin] = mergeAccounts(sites[origin] || [], rows);
+  }
+}
+
+function accountFromRow(row, siteHint) {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  const email = String(row.email || row.login || "").trim();
+  const password = row.password == null ? "" : String(row.password);
+  const site = normalizeOrigin(siteHint);
+  if (!email || !password || !site) {
+    return null;
+  }
+  return {
+    site,
+    username: String(row.username || row.name || "").trim(),
+    email,
+    password,
+  };
+}
+
+function normalizeSites(value) {
+  const next = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return next;
+  }
+  for (const [origin, rows] of Object.entries(value)) {
+    const site = normalizeOrigin(origin);
+    if (!site || !Array.isArray(rows)) {
+      continue;
+    }
+    const accounts = rows.map((row) => accountFromRow(row, site)).filter(Boolean);
+    if (accounts.length) {
+      next[site] = mergeAccounts(next[site] || [], accounts);
     }
   }
   return next;
 }
 
+function mergeAccounts(current, incoming) {
+  const next = current.map((account) => ({
+    username: account.username || "",
+    email: account.email,
+    password: account.password,
+  }));
+  const indexByEmail = new Map(next.map((account, index) => [account.email.toLowerCase(), index]));
+  for (const account of incoming) {
+    const stored = {
+      username: account.username || "",
+      email: account.email,
+      password: account.password,
+    };
+    const key = stored.email.toLowerCase();
+    if (indexByEmail.has(key)) {
+      next[indexByEmail.get(key)] = stored;
+    } else {
+      indexByEmail.set(key, next.length);
+      next.push(stored);
+    }
+  }
+  return next;
+}
+
+function normalizeOrigin(value) {
+  if (!value) {
+    return "";
+  }
+  try {
+    const raw = String(value).trim();
+    return new URL(raw.includes("://") ? raw : `https://${raw}`).origin;
+  } catch (error) {
+    return "";
+  }
+}
+
+function siteLabel(origin) {
+  try {
+    return new URL(origin).host;
+  } catch (error) {
+    return origin;
+  }
+}
+
+function displayName(account) {
+  return account.username || account.email;
+}
+
 function render() {
   const session = odooTab && odooTab.session;
+  const origin = odooTab && odooTab.origin;
   if (!odooTab || !odooTab.isOdoo) {
     sessionLine.textContent = "Active tab is not Odoo";
   } else if (session && session.name) {
@@ -114,58 +254,93 @@ function render() {
   } else if (session && session.db) {
     sessionLine.textContent = `Signed out · ${session.db}`;
   } else {
-    sessionLine.textContent = "Odoo tab · database not selected";
+    sessionLine.textContent = origin ? siteLabel(origin) : "Odoo tab";
   }
 
   accountList.replaceChildren();
-  if (!accounts.length) {
+  const origins = new Set(Object.keys(sites));
+  if (origin) {
+    origins.add(origin);
+  }
+  const ordered = [...origins].sort((left, right) => {
+    if (left === origin) {
+      return -1;
+    }
+    if (right === origin) {
+      return 1;
+    }
+    return siteLabel(left).localeCompare(siteLabel(right));
+  });
+
+  if (!ordered.length) {
     const empty = document.createElement("li");
     empty.className = "empty";
-    empty.textContent = "Import a JSON file to add logins.";
+    empty.textContent = "Open an Odoo tab, then add a login.";
     accountList.appendChild(empty);
     return;
   }
 
   const currentEmail = session && session.username ? session.username.toLowerCase() : "";
-  for (const account of accounts) {
-    const item = document.createElement("li");
-    const row = document.createElement("div");
-    row.className = "row";
-    const button = document.createElement("button");
-    const isCurrent = currentEmail && currentEmail === account.email.toLowerCase();
-    button.className = "account";
-    button.type = "button";
-    button.dataset.email = account.email;
-    button.dataset.current = isCurrent ? "true" : "false";
-    button.disabled = busy || !odooTab || !odooTab.isOdoo;
-    button.title = odooTab && odooTab.isOdoo ? `Sign in as ${account.email}` : "Open an Odoo tab first";
+  for (const site of ordered) {
+    const group = document.createElement("li");
+    const heading = document.createElement("p");
+    const isCurrent = site === origin;
+    heading.className = "site-name";
+    heading.dataset.current = isCurrent ? "true" : "false";
+    heading.textContent = isCurrent ? `${siteLabel(site)} · this tab` : siteLabel(site);
+    group.appendChild(heading);
 
-    const stamp = document.createElement("span");
-    stamp.className = "stamp";
-    stamp.textContent = initials(account.name);
+    const accounts = sites[site] || [];
+    if (!accounts.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty";
+      empty.textContent = "No logins for this site yet.";
+      group.appendChild(empty);
+      accountList.appendChild(group);
+      continue;
+    }
 
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = account.name;
-    const email = document.createElement("span");
-    email.className = "email";
-    email.textContent = isCurrent ? `${account.email} · current` : account.email;
-    meta.append(name, email);
+    for (const account of accounts) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const button = document.createElement("button");
+      const isSignedIn = isCurrent && currentEmail && currentEmail === account.email.toLowerCase();
+      button.className = "account";
+      button.type = "button";
+      button.dataset.site = site;
+      button.dataset.email = account.email;
+      button.dataset.current = isSignedIn ? "true" : "false";
+      button.disabled = busy || !isCurrent;
+      button.title = isCurrent ? `Sign in as ${account.email}` : `Open ${siteLabel(site)} to sign in`;
 
-    const remove = document.createElement("button");
-    remove.className = "remove";
-    remove.type = "button";
-    remove.dataset.remove = account.email;
-    remove.textContent = "×";
-    remove.title = `Remove ${account.email}`;
-    remove.setAttribute("aria-label", `Remove ${account.email}`);
+      const stamp = document.createElement("span");
+      stamp.className = "stamp";
+      stamp.textContent = initials(displayName(account));
 
-    button.append(stamp, meta);
-    row.append(button, remove);
-    item.appendChild(row);
-    accountList.appendChild(item);
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = displayName(account);
+      const email = document.createElement("span");
+      email.className = "email";
+      email.textContent = isSignedIn ? `${account.email} · current` : account.email;
+      meta.append(name, email);
+
+      const remove = document.createElement("button");
+      remove.className = "remove";
+      remove.type = "button";
+      remove.dataset.remove = account.email;
+      remove.dataset.site = site;
+      remove.textContent = "×";
+      remove.title = `Remove ${account.email}`;
+      remove.setAttribute("aria-label", `Remove ${account.email} from ${siteLabel(site)}`);
+
+      button.append(stamp, meta);
+      row.append(button, remove);
+      group.appendChild(row);
+    }
+    accountList.appendChild(group);
   }
 }
 
@@ -174,31 +349,38 @@ async function onListClick(event) {
   if (removeButton) {
     event.preventDefault();
     event.stopPropagation();
+    const site = removeButton.dataset.site;
     const email = removeButton.dataset.remove.toLowerCase();
-    await saveAccounts(accounts.filter((account) => account.email.toLowerCase() !== email));
+    sites[site] = (sites[site] || []).filter((account) => account.email.toLowerCase() !== email);
+    if (!sites[site].length) {
+      delete sites[site];
+    }
+    await chrome.storage.local.set({ [SITES_KEY]: sites });
+    render();
     setStatus("Account removed.");
     return;
   }
+
   const button = event.target.closest(".account");
   if (!button || button.disabled || busy) {
     return;
   }
-  const account = accounts.find((item) => item.email === button.dataset.email);
+  const account = (sites[button.dataset.site] || []).find((item) => item.email === button.dataset.email);
   if (!account) {
     return;
   }
-  await switchTo(account);
+  await switchTo(button.dataset.site, account);
 }
 
-async function switchTo(account) {
+async function switchTo(site, account) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.id || !odooTab || !odooTab.isOdoo) {
-    setStatus("Open the Odoo tab you want to switch, then click the extension.", "error");
+  if (!tab || !tab.id || !odooTab || !odooTab.isOdoo || odooTab.origin !== site) {
+    setStatus("Open that site's Odoo tab, then choose the login.", "error");
     return;
   }
   busy = true;
   render();
-  setStatus(`Signing out and opening ${account.name}…`);
+  setStatus(`Signing out and opening ${displayName(account)}…`);
   try {
     const [injection] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -212,7 +394,7 @@ async function switchTo(account) {
       setStatus((result && result.error) || "Login failed.", "error");
       return;
     }
-    setStatus(`Opening Odoo as ${result.name || account.name}.`);
+    setStatus(`Opening Odoo as ${result.name || displayName(account)}.`);
   } catch (error) {
     busy = false;
     render();
@@ -321,7 +503,7 @@ async function odooBridge(command, payload) {
         session.db = null;
       }
     }
-    return { isOdoo: true, session: session };
+    return { isOdoo: true, origin: location.origin, session: session };
   }
 
   if (command !== "switch") {

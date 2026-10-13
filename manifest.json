@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "interlogin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Switch the open Odoo tab to a login imported from JSON. interlogin by stephenprasetyachrismawan.",
   "permissions": ["storage", "activeTab", "scripting"],
   "action": {
