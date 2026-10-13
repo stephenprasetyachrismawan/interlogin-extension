@@ -1,0 +1,213 @@
+:root {
+  color-scheme: light;
+  --ink: #241820;
+  --muted: #6d5966;
+  --paper: #fbf7f8;
+  --plum: #714b67;
+  --plum-deep: #4c3146;
+  --line: #eadfe6;
+  --stamp: #f3e8ef;
+  --ok: #1f6b3a;
+  --danger: #8c2433;
+  --danger-bg: #fdecef;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 300px;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 13px/1.4 "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  background: var(--plum);
+  color: #fff;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.session {
+  margin: 2px 0 0;
+  color: #f0dce8;
+  font-size: 12px;
+}
+
+.ghost,
+.account,
+.remove {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ghost {
+  margin-left: auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--plum-deep);
+  font-weight: 650;
+}
+
+.ghost:focus-visible,
+.account:focus-visible,
+.remove:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.status {
+  margin: 0;
+  padding: 8px 14px;
+  background: var(--stamp);
+  color: var(--plum-deep);
+}
+
+.status[data-tone="error"] {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.accounts {
+  margin: 0;
+  padding: 6px;
+  max-height: 320px;
+  overflow: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.account:hover:not(:disabled),
+.account:focus-visible {
+  background: var(--stamp);
+}
+
+.account:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.account[data-current="true"] {
+  background: #eef6f0;
+}
+
+.stamp {
+  display: grid;
+  flex: 0 0 32px;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--plum);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.account[data-current="true"] .stamp {
+  background: var(--ok);
+}
+
+.meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.name,
+.email {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  font-weight: 650;
+}
+
+.email {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.remove {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.remove:hover {
+  background: #fff;
+  color: var(--danger);
+}
+
+.empty {
+  margin: 0;
+  padding: 22px 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.foot {
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.foot p {
+  margin: 0;
+}
+
+.brand {
+  margin-top: 6px;
+}
+
+.brand a {
+  color: var(--plum);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.brand a:hover,
+.brand a:focus-visible {
+  text-decoration: underline;
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 10px;
+}

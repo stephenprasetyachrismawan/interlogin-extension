@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>interlogin</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="head">
+    <div>
+      <p class="title">interlogin</p>
+      <p id="session-line" class="session">Checking the active tab…</p>
+    </div>
+    <button id="import-button" class="ghost" type="button">Import</button>
+    <input id="import-file" type="file" accept="application/json,.json" hidden>
+  </header>
+
+  <p id="status" class="status" hidden></p>
+
+  <ul id="account-list" class="accounts"></ul>
+
+  <footer class="foot">
+    <p>JSON fields: <code>email</code>, <code>password</code>, optional <code>name</code>.</p>
+    <p class="brand">interlogin by <a href="https://github.com/stephenprasetyachrismawan" target="_blank" rel="noopener noreferrer">stephenprasetyachrismawan</a></p>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
