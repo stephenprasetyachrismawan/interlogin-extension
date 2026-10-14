@@ -87,6 +87,71 @@ body {
   color: var(--danger);
 }
 
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tool,
+.danger {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tool {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--plum-deep);
+}
+
+.tool[data-state="on"] {
+  background: #eef6f0;
+  border-color: #b7d7c2;
+  color: var(--ok);
+}
+
+.tool[data-state="assets"] {
+  background: var(--stamp);
+  border-color: #d7c3d1;
+}
+
+.tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tool:focus-visible,
+.danger:focus-visible {
+  outline: 2px solid var(--plum);
+  outline-offset: 2px;
+}
+
+.danger {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 650;
+}
+
+.confirm {
+  margin: 8px;
+  padding: 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: var(--danger-bg);
+}
+
+.confirm p {
+  margin: 0 0 8px;
+}
+
 .editor {
   display: grid;
   gap: 8px;

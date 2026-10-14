@@ -21,6 +21,27 @@
 
   <p id="status" class="status" hidden></p>
 
+  <div id="odoo-tools" class="tools" hidden>
+    <button id="debug-switch" class="tool" type="button" title="Click: debug on or off. Double-click: assets debug.">Debug</button>
+    <button id="fetch-button" class="tool" type="button" hidden>Fetch</button>
+  </div>
+
+  <form id="reset-form" class="editor" hidden>
+    <label>
+      New password for every user
+      <input name="password" type="password" autocomplete="off">
+    </label>
+    <button class="danger" type="submit">Reset all passwords</button>
+  </form>
+
+  <section id="reset-confirm" class="confirm" hidden>
+    <p id="reset-confirm-text"></p>
+    <div class="editor-actions">
+      <button id="reset-confirm-ok" class="danger" type="button">Reset all passwords</button>
+      <button id="reset-confirm-cancel" class="text" type="button">Cancel</button>
+    </div>
+  </section>
+
   <form id="account-form" class="editor" hidden>
     <label>
       Username

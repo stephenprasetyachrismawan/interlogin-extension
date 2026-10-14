@@ -9,10 +9,21 @@ const addButton = document.querySelector("#add-button");
 const importButton = document.querySelector("#import-button");
 const importFile = document.querySelector("#import-file");
 const cancelAdd = document.querySelector("#cancel-add");
+const odooTools = document.querySelector("#odoo-tools");
+const debugSwitch = document.querySelector("#debug-switch");
+const fetchButton = document.querySelector("#fetch-button");
+const resetForm = document.querySelector("#reset-form");
+const resetConfirm = document.querySelector("#reset-confirm");
+const resetConfirmText = document.querySelector("#reset-confirm-text");
+const resetConfirmOk = document.querySelector("#reset-confirm-ok");
+const resetConfirmCancel = document.querySelector("#reset-confirm-cancel");
 
 let sites = {};
 let odooTab = null;
 let busy = false;
+let pendingReset = "";
+let debugClicks = 0;
+let debugTimer = null;
 
 document.addEventListener("DOMContentLoaded", init);
 addButton.addEventListener("click", toggleForm);
@@ -21,6 +32,11 @@ accountForm.addEventListener("submit", saveFromForm);
 importButton.addEventListener("click", () => importFile.click());
 importFile.addEventListener("change", importAccounts);
 accountList.addEventListener("click", onListClick);
+debugSwitch.addEventListener("click", onDebugClick);
+fetchButton.addEventListener("click", fetchUsers);
+resetForm.addEventListener("submit", askReset);
+resetConfirmOk.addEventListener("click", confirmReset);
+resetConfirmCancel.addEventListener("click", closeReset);
 
 async function init() {
   const stored = await chrome.storage.local.get([SITES_KEY, LEGACY_KEY]);
@@ -160,18 +176,20 @@ function applyIncoming(grouped) {
   }
 }
 
-function accountFromRow(row, siteHint) {
+function accountFromRow(row, siteHint, requirePassword = true) {
   if (!row || typeof row !== "object") {
     return null;
   }
   const email = String(row.email || row.login || "").trim();
   const password = row.password == null ? "" : String(row.password);
   const site = normalizeOrigin(siteHint);
-  if (!email || !password || !site) {
+  if (!email || !site || (requirePassword && !password)) {
     return null;
   }
+  const id = Number(row.id);
   return {
     site,
+    id: Number.isInteger(id) && id > 0 ? id : null,
     username: String(row.username || row.name || "").trim(),
     email,
     password,
@@ -188,7 +206,7 @@ function normalizeSites(value) {
     if (!site || !Array.isArray(rows)) {
       continue;
     }
-    const accounts = rows.map((row) => accountFromRow(row, site)).filter(Boolean);
+    const accounts = rows.map((row) => accountFromRow(row, site, false)).filter(Boolean);
     if (accounts.length) {
       next[site] = mergeAccounts(next[site] || [], accounts);
     }
@@ -196,21 +214,30 @@ function normalizeSites(value) {
   return next;
 }
 
-function mergeAccounts(current, incoming) {
-  const next = current.map((account) => ({
+function copyAccount(account) {
+  const id = Number(account.id);
+  return {
+    id: Number.isInteger(id) && id > 0 ? id : null,
     username: account.username || "",
     email: account.email,
-    password: account.password,
-  }));
+    password: account.password || "",
+  };
+}
+
+function mergeAccounts(current, incoming) {
+  const next = current.map(copyAccount);
   const indexByEmail = new Map(next.map((account, index) => [account.email.toLowerCase(), index]));
   for (const account of incoming) {
+    const key = account.email.toLowerCase();
+    const existing = indexByEmail.has(key) ? next[indexByEmail.get(key)] : null;
+    const id = Number(account.id);
     const stored = {
-      username: account.username || "",
+      id: Number.isInteger(id) && id > 0 ? id : existing && existing.id,
+      username: account.username != null ? account.username : (existing && existing.username) || "",
       email: account.email,
-      password: account.password,
+      password: account.password || (existing && existing.password) || "",
     };
-    const key = stored.email.toLowerCase();
-    if (indexByEmail.has(key)) {
+    if (existing) {
       next[indexByEmail.get(key)] = stored;
     } else {
       indexByEmail.set(key, next.length);
@@ -245,6 +272,7 @@ function displayName(account) {
 }
 
 function render() {
+  renderTools();
   const session = odooTab && odooTab.session;
   const origin = odooTab && odooTab.origin;
   if (!odooTab || !odooTab.isOdoo) {
@@ -310,8 +338,14 @@ function render() {
       button.dataset.site = site;
       button.dataset.email = account.email;
       button.dataset.current = isSignedIn ? "true" : "false";
-      button.disabled = busy || !isCurrent;
-      button.title = isCurrent ? `Sign in as ${account.email}` : `Open ${siteLabel(site)} to sign in`;
+      button.disabled = busy || !isCurrent || !account.password;
+      if (!account.password) {
+        button.title = "No password is saved for this user";
+      } else if (!isCurrent) {
+        button.title = `Open ${siteLabel(site)} to sign in`;
+      } else {
+        button.title = `Sign in as ${account.email}`;
+      }
 
       const stamp = document.createElement("span");
       stamp.className = "stamp";
@@ -324,7 +358,14 @@ function render() {
       name.textContent = displayName(account);
       const email = document.createElement("span");
       email.className = "email";
-      email.textContent = isSignedIn ? `${account.email} · current` : account.email;
+      const details = [account.email];
+      if (account.id) {
+        details.push(`#${account.id}`);
+      }
+      if (isSignedIn) {
+        details.push("current");
+      }
+      email.textContent = details.join(" · ");
       meta.append(name, email);
 
       const remove = document.createElement("button");
@@ -419,6 +460,222 @@ function initials(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
+function currentSession() {
+  return (odooTab && odooTab.session) || {};
+}
+
+function debugValue() {
+  return String(currentSession().debug || "");
+}
+
+function debugModes(value) {
+  return String(value || "")
+    .split(",")
+    .map((mode) => mode.trim())
+    .filter((mode) => mode && mode !== "0" && mode !== "false");
+}
+
+function debugIsSimple(value) {
+  const modes = debugModes(value);
+  return modes.includes("1") && !modes.includes("assets");
+}
+
+function debugIsOn(value) {
+  return debugModes(value).length > 0;
+}
+
+function renderTools() {
+  const isOdoo = Boolean(odooTab && odooTab.isOdoo);
+  const isAdmin = Boolean(currentSession().isAdmin);
+  const debug = debugValue();
+  odooTools.hidden = !isOdoo;
+  debugSwitch.dataset.state = debugModes(debug).includes("assets") ? "assets" : debugIsOn(debug) ? "on" : "off";
+  debugSwitch.textContent = debugModes(debug).includes("assets") ? "Assets" : debugIsOn(debug) ? "Debug on" : "Debug";
+  fetchButton.hidden = !isAdmin;
+  fetchButton.disabled = busy || !debugIsOn(debug);
+  resetConfirmOk.disabled = busy;
+  fetchButton.title = debugIsOn(debug) ? "Fetch users into this site" : "Turn on debug mode first";
+  resetForm.hidden = !isAdmin;
+  if (!isAdmin) {
+    closeReset();
+  }
+}
+
+function onDebugClick() {
+  debugClicks += 1;
+  if (debugTimer) {
+    clearTimeout(debugTimer);
+  }
+  debugTimer = setTimeout(() => {
+    const clicks = debugClicks;
+    debugClicks = 0;
+    debugTimer = null;
+    if (clicks >= 2) {
+      setDebug("assets");
+      return;
+    }
+    setDebug(debugIsSimple(debugValue()) ? "0" : "1");
+  }, 280);
+}
+
+async function setDebug(mode) {
+  if (!odooTab || !odooTab.isOdoo) {
+    setStatus("Open an Odoo tab before changing debug mode.", "error");
+    return;
+  }
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !tab.id) {
+    return;
+  }
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: odooBridge,
+    args: ["debug", { mode: mode }],
+  });
+}
+
+async function fetchUsers() {
+  if (!currentSession().isAdmin) {
+    setStatus("Only an account that can manage users can fetch.", "error");
+    return;
+  }
+  if (!debugIsOn(debugValue())) {
+    setStatus("Turn on debug mode before fetching users.", "error");
+    return;
+  }
+  const origin = odooTab && odooTab.origin;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!origin || !tab || !tab.id) {
+    setStatus("Open an Odoo tab before fetching users.", "error");
+    return;
+  }
+  busy = true;
+  render();
+  setStatus("Fetching users…");
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: odooBridge,
+      args: ["fetch", null],
+    });
+    const result = injection && injection.result;
+    if (!result || !result.ok) {
+      busy = false;
+      render();
+      setStatus((result && result.error) || "Fetch failed.", "error");
+      return;
+    }
+    applyFetchedUsers(origin, result.users || []);
+    await chrome.storage.local.set({ [SITES_KEY]: sites });
+    busy = false;
+    render();
+    setStatus(`Updated ${result.users.length} user${result.users.length === 1 ? "" : "s"} for ${siteLabel(origin)}.`);
+  } catch (error) {
+    busy = false;
+    render();
+    setStatus("Could not reach the Odoo tab.", "error");
+  }
+}
+
+function applyFetchedUsers(origin, users) {
+  const current = sites[origin] || [];
+  const byEmail = new Map(current.map((account) => [account.email.toLowerCase(), copyAccount(account)]));
+  const seen = new Set(current.map((account) => account.email.toLowerCase()));
+  for (const user of users) {
+    const email = String(user.login || "").trim();
+    const id = Number(user.id);
+    if (!email || !Number.isInteger(id) || id <= 0) {
+      continue;
+    }
+    const key = email.toLowerCase();
+    const existing = byEmail.get(key);
+    byEmail.set(key, {
+      id: id,
+      username: String(user.name || (existing && existing.username) || "").trim(),
+      email: existing ? existing.email : email,
+      password: (existing && existing.password) || "",
+    });
+  }
+  const kept = current.map((account) => byEmail.get(account.email.toLowerCase())).filter(Boolean);
+  const added = [...byEmail.values()].filter((account) => !seen.has(account.email.toLowerCase()));
+  sites[origin] = [...kept, ...added];
+}
+
+function askReset(event) {
+  event.preventDefault();
+  if (busy) {
+    return;
+  }
+  if (!currentSession().isAdmin) {
+    setStatus("Only an account that can manage users can reset passwords.", "error");
+    return;
+  }
+  const password = resetForm.elements.password.value;
+  if (!password.trim()) {
+    setStatus("Enter the new password first.", "error");
+    return;
+  }
+  pendingReset = password;
+  resetConfirmText.textContent = `This sets every user this account can manage to “${password}”, including internal, portal, and public users. The account you are using is included, so Odoo will sign this session out. This cannot be undone.`;
+  resetConfirm.hidden = false;
+  resetConfirmCancel.focus();
+}
+
+function closeReset() {
+  pendingReset = "";
+  resetConfirm.hidden = true;
+}
+
+async function confirmReset() {
+  const password = pendingReset;
+  const origin = odooTab && odooTab.origin;
+  if (!password || !origin) {
+    closeReset();
+    return;
+  }
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !tab.id) {
+    return;
+  }
+  busy = true;
+  render();
+  setStatus("Resetting passwords…");
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: odooBridge,
+      args: ["reset", { password: password }],
+    });
+    const result = injection && injection.result;
+    if (!result || !result.ok) {
+      busy = false;
+      closeReset();
+      render();
+      setStatus((result && result.error) || "Reset failed.", "error");
+      return;
+    }
+    const ids = new Set(result.ids || []);
+    const logins = new Set((result.logins || []).map((login) => String(login).toLowerCase()));
+    sites[origin] = (sites[origin] || []).map((account) => {
+      if ((account.id && ids.has(account.id)) || logins.has(account.email.toLowerCase())) {
+        return { ...copyAccount(account), password: password };
+      }
+      return account;
+    });
+    await chrome.storage.local.set({ [SITES_KEY]: sites });
+    resetForm.reset();
+    closeReset();
+    busy = false;
+    render();
+    setStatus(`Reset ${result.count} password${result.count === 1 ? "" : "s"}.`);
+  } catch (error) {
+    busy = false;
+    closeReset();
+    render();
+    setStatus("Could not reach the Odoo tab.", "error");
+  }
+}
+
 async function odooBridge(command, payload) {
   async function rpc(path, params) {
     const response = await fetch(path, {
@@ -476,6 +733,8 @@ async function odooBridge(command, payload) {
         db: info.db || null,
         username: info.uid ? info.username || null : null,
         name: info.uid ? info.name || null : null,
+        isAdmin: Boolean(info.uid && info.is_admin),
+        debug: (info.bundle_params && info.bundle_params.debug) || "",
       };
     } catch (error) {
       return null;
@@ -491,7 +750,10 @@ async function odooBridge(command, payload) {
     } catch (error) {
       return { isOdoo: false };
     }
-    const session = (await readSession()) || { db: null, username: null, name: null };
+    const session = (await readSession()) || { db: null, username: null, name: null, isAdmin: false, debug: "" };
+    if (!session.debug) {
+      session.debug = new URLSearchParams(location.search).get("debug") || "";
+    }
     if (!session.db) {
       session.db = readDatabaseFromPage();
     }
@@ -504,6 +766,75 @@ async function odooBridge(command, payload) {
       }
     }
     return { isOdoo: true, origin: location.origin, session: session };
+  }
+
+  if (command === "debug") {
+    const url = new URL(location.href);
+    const mode = payload && payload.mode ? String(payload.mode) : "0";
+    url.searchParams.set("debug", mode);
+    location.assign(url.toString());
+    return { ok: true };
+  }
+
+  if (command === "fetch" || command === "reset") {
+    const session = await readSession();
+    if (!session || !session.isAdmin) {
+      return { ok: false, error: "Only an account that can manage users can do this." };
+    }
+    const debugModes = String(session.debug || "")
+      .split(",")
+      .map((mode) => mode.trim())
+      .filter((mode) => mode && mode !== "0" && mode !== "false");
+    if (command === "fetch" && !debugModes.length) {
+      return { ok: false, error: "Turn on debug mode before fetching users." };
+    }
+    try {
+      if (command === "fetch") {
+        const users = await rpc("/web/dataset/call_kw/res.users/search_read", {
+          model: "res.users",
+          method: "search_read",
+          args: [],
+          kwargs: {
+            domain: [],
+            fields: ["id", "name", "login"],
+            context: { active_test: false },
+          },
+        });
+        return { ok: true, users: users || [] };
+      }
+      const password = payload && payload.password ? String(payload.password) : "";
+      if (!password.trim()) {
+        return { ok: false, error: "Enter the new password first." };
+      }
+      const rows = await rpc("/web/dataset/call_kw/res.users/search_read", {
+        model: "res.users",
+        method: "search_read",
+        args: [],
+        kwargs: {
+          domain: [],
+          fields: ["id", "login"],
+          context: { active_test: false },
+        },
+      });
+      const ids = (rows || []).map((row) => row.id).filter((id) => id);
+      if (!ids.length) {
+        return { ok: false, error: "No users were found." };
+      }
+      await rpc("/web/dataset/call_kw/res.users/write", {
+        model: "res.users",
+        method: "write",
+        args: [ids, { password: password }],
+        kwargs: { context: { active_test: false } },
+      });
+      return {
+        ok: true,
+        count: ids.length,
+        ids: ids,
+        logins: (rows || []).map((row) => row.login).filter(Boolean),
+      };
+    } catch (error) {
+      return { ok: false, error: error.message || "Odoo request failed." };
+    }
   }
 
   if (command !== "switch") {
