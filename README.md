@@ -1,14 +1,16 @@
-# interlogin
+<h1 align="center">interlogin</h1>
 
-The open Odoo tab, signed in as someone else.
+<p align="center">The open Odoo tab, signed in as someone else.</p>
 
-interlogin by [stephenprasetyachrismawan](https://github.com/stephenprasetyachrismawan)
+<p align="center">interlogin by <a href="https://github.com/stephenprasetyachrismawan">stephenprasetyachrismawan</a></p>
 
 <p align="center">
-  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.0"><img alt="version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-714B67"></a>
-  <img alt="Manifest V3" src="https://img.shields.io/badge/manifest-V3-4C3146">
-  <img alt="Chrome and Edge" src="https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-1F6B3A">
-  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/stephenprasetyachrismawan/interlogin-extension?color=714B67"></a>
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.0"><img alt="version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-714B67?style=for-the-badge"></a>
+  <img alt="Manifest V3" src="https://img.shields.io/badge/manifest-V3-4C3146?style=for-the-badge">
+  <img alt="Chrome and Edge" src="https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-1F6B3A?style=for-the-badge">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-C4A0C4?style=for-the-badge"></a>
+  <a href="#security"><img alt="Security: passwords stay in this browser" src="https://img.shields.io/badge/security-passwords%20stay%20local-8C2433?style=for-the-badge"></a>
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/stargazers"><img alt="stargazers" src="https://img.shields.io/github/stars/stephenprasetyachrismawan/interlogin-extension?style=for-the-badge&label=stargazers&color=714B67"></a>
 </p>
 
 <p align="center">
@@ -18,10 +20,15 @@ interlogin by [stephenprasetyachrismawan](https://github.com/stephenprasetyachri
   <a href="#debug">Debug</a> ·
   <a href="#fetch">Fetch</a> ·
   <a href="#reset">Reset</a> ·
-  <a href="#json">JSON</a>
+  <a href="#json">JSON</a> ·
+  <a href="#security">Security</a> ·
+  <a href="LICENSE">License</a> ·
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/stargazers">Stargazers</a>
 </p>
 
-![interlogin, from the open site to reset](assets/interlogin.gif)
+<p align="center">
+  <img alt="interlogin, from the open site to reset" src="assets/interlogin.gif">
+</p>
 
 The panel sits under the extension icon. It signs out of the Odoo session on that tab and signs in as the account you pick. Another website does nothing.
 
@@ -101,3 +108,18 @@ Import is optional. `email` and `password` are required. `username` is optional.
 ## Sign-in
 
 interlogin calls `/web/session/logout` on that tab, then `/web/session/authenticate` with the stored email and password. A wrong password leaves you on the Odoo login page, because the previous session was already signed out.
+
+## Security
+
+interlogin does not send saved logins to a server of its own. The list stays in this browser profile, in extension storage.
+
+- Anyone who can open this profile can read the saved passwords.
+- Fetch and reset run only on the open Odoo tab, and only for an account that can manage users.
+- Reset writes nothing until the confirmation is clicked. It then changes every user that account can manage, and Odoo signs that session out.
+- Import a JSON file only when you trust the file. Its passwords are stored the same way.
+
+The security badge above means that. It is not a third-party audit.
+
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 stephenprasetyachrismawan.
