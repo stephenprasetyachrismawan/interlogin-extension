@@ -12,16 +12,16 @@
       <p class="title">interlogin</p>
       <p id="session-line" class="session">Checking the active tab…</p>
     </div>
-    <div class="actions">
-      <button id="add-button" class="ghost" type="button">Add</button>
-      <button id="import-button" class="ghost" type="button">Import</button>
-    </div>
+    <button id="more-button" class="ghost" type="button" aria-expanded="false">More</button>
     <input id="import-file" type="file" accept="application/json,.json" hidden>
   </header>
 
   <p id="status" class="status" hidden></p>
 
-  <div id="odoo-tools" class="tools" hidden>
+  <div id="more-panel" hidden>
+  <div id="odoo-tools" class="tools">
+    <button id="add-button" class="tool" type="button">Add</button>
+    <button id="import-button" class="tool" type="button">Import</button>
     <button id="debug-switch" class="tool" type="button" title="Click: debug on or off. Double-click: assets debug.">Debug</button>
     <button id="fetch-button" class="tool" type="button" hidden>Fetch</button>
   </div>
@@ -60,6 +60,7 @@
       <button id="cancel-add" class="text" type="button">Cancel</button>
     </div>
   </form>
+  </div>
 
   <ul id="account-list" class="accounts"></ul>
 

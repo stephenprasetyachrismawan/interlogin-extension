@@ -54,13 +54,8 @@ body {
   cursor: pointer;
 }
 
-.actions {
-  margin-left: auto;
-  display: flex;
-  gap: 6px;
-}
-
 .ghost {
+  margin-left: auto;
   padding: 6px 10px;
   border-radius: 999px;
   background: #fff;
@@ -311,6 +306,24 @@ body {
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
+  opacity: 0;
+}
+
+.row:hover .remove,
+.row:focus-within .remove {
+  opacity: 1;
+}
+
+.others {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .remove:hover {

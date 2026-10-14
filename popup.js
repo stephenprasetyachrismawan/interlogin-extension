@@ -5,6 +5,8 @@ const sessionLine = document.querySelector("#session-line");
 const statusLine = document.querySelector("#status");
 const accountList = document.querySelector("#account-list");
 const accountForm = document.querySelector("#account-form");
+const moreButton = document.querySelector("#more-button");
+const morePanel = document.querySelector("#more-panel");
 const addButton = document.querySelector("#add-button");
 const importButton = document.querySelector("#import-button");
 const importFile = document.querySelector("#import-file");
@@ -21,11 +23,14 @@ const resetConfirmCancel = document.querySelector("#reset-confirm-cancel");
 let sites = {};
 let odooTab = null;
 let busy = false;
+let moreOpen = false;
+let othersOpen = false;
 let pendingReset = "";
 let debugClicks = 0;
 let debugTimer = null;
 
 document.addEventListener("DOMContentLoaded", init);
+moreButton.addEventListener("click", toggleMore);
 addButton.addEventListener("click", toggleForm);
 cancelAdd.addEventListener("click", closeForm);
 accountForm.addEventListener("submit", saveFromForm);
@@ -52,32 +57,49 @@ async function init() {
   render();
 }
 
-async function detectActiveOdooTab() {
+async function runOnPage(command, payload) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.id) {
-    return { isOdoo: false };
+    return null;
   }
+  const [injection] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: "MAIN",
+    func: odooBridge,
+    args: [command, payload == null ? null : payload],
+  });
+  return injection ? injection.result : null;
+}
+
+async function detectActiveOdooTab() {
   try {
-    const [injection] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: odooBridge,
-      args: ["detect", null],
-    });
-    return injection && injection.result ? injection.result : { isOdoo: false };
+    return (await runOnPage("detect", null)) || { isOdoo: false };
   } catch (error) {
     return { isOdoo: false };
   }
 }
 
+function toggleMore() {
+  moreOpen = !moreOpen;
+  if (!moreOpen) {
+    closeForm();
+    closeReset();
+  }
+  render();
+}
+
 function toggleForm() {
+  if (!odooTab || !odooTab.isOdoo || !odooTab.origin) {
+    setStatus("Open an Odoo tab before adding someone.", "error");
+    return;
+  }
+  moreOpen = true;
   if (!accountForm.hidden) {
     closeForm();
+    render();
     return;
   }
-  if (!odooTab || !odooTab.isOdoo || !odooTab.origin) {
-    setStatus("Open an Odoo tab before adding a login.", "error");
-    return;
-  }
+  render();
   accountForm.hidden = false;
   accountForm.elements.username.focus();
 }
@@ -276,13 +298,13 @@ function render() {
   const session = odooTab && odooTab.session;
   const origin = odooTab && odooTab.origin;
   if (!odooTab || !odooTab.isOdoo) {
-    sessionLine.textContent = "Active tab is not Odoo";
+    sessionLine.textContent = "Open an Odoo tab";
   } else if (session && session.name) {
-    sessionLine.textContent = session.db ? `${session.name} · ${session.db}` : session.name;
-  } else if (session && session.db) {
-    sessionLine.textContent = `Signed out · ${session.db}`;
+    sessionLine.textContent = `Signed in as ${session.name}`;
+  } else if (origin) {
+    sessionLine.textContent = siteLabel(origin);
   } else {
-    sessionLine.textContent = origin ? siteLabel(origin) : "Odoo tab";
+    sessionLine.textContent = "Odoo";
   }
 
   accountList.replaceChildren();
@@ -303,26 +325,36 @@ function render() {
   if (!ordered.length) {
     const empty = document.createElement("li");
     empty.className = "empty";
-    empty.textContent = "Open an Odoo tab, then add a login.";
+    empty.textContent = "Open an Odoo tab, then add someone.";
     accountList.appendChild(empty);
     return;
   }
 
   const currentEmail = session && session.username ? session.username.toLowerCase() : "";
-  for (const site of ordered) {
+  const visible = othersOpen ? ordered : ordered.filter((site) => site === origin);
+  const hiddenCount = ordered.length - visible.length;
+  if (!visible.length) {
+    const empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = origin ? "No one saved for this site yet." : "Open an Odoo tab to see its people.";
+    accountList.appendChild(empty);
+  }
+  for (const site of visible) {
     const group = document.createElement("li");
     const heading = document.createElement("p");
     const isCurrent = site === origin;
     heading.className = "site-name";
     heading.dataset.current = isCurrent ? "true" : "false";
     heading.textContent = isCurrent ? `${siteLabel(site)} · this tab` : siteLabel(site);
-    group.appendChild(heading);
+    if (othersOpen) {
+      group.appendChild(heading);
+    }
 
     const accounts = sites[site] || [];
     if (!accounts.length) {
       const empty = document.createElement("p");
       empty.className = "empty";
-      empty.textContent = "No logins for this site yet.";
+      empty.textContent = "No one saved for this site yet.";
       group.appendChild(empty);
       accountList.appendChild(group);
       continue;
@@ -338,13 +370,13 @@ function render() {
       button.dataset.site = site;
       button.dataset.email = account.email;
       button.dataset.current = isSignedIn ? "true" : "false";
-      button.disabled = busy || !isCurrent || !account.password;
+      button.disabled = busy;
       if (!account.password) {
-        button.title = "No password is saved for this user";
+        button.title = "No password saved yet";
       } else if (!isCurrent) {
-        button.title = `Open ${siteLabel(site)} to sign in`;
+        button.title = `Open ${siteLabel(site)} first`;
       } else {
-        button.title = `Sign in as ${account.email}`;
+        button.title = `Sign in as ${displayName(account)}`;
       }
 
       const stamp = document.createElement("span");
@@ -358,14 +390,7 @@ function render() {
       name.textContent = displayName(account);
       const email = document.createElement("span");
       email.className = "email";
-      const details = [account.email];
-      if (account.id) {
-        details.push(`#${account.id}`);
-      }
-      if (isSignedIn) {
-        details.push("current");
-      }
-      email.textContent = details.join(" · ");
+      email.textContent = isSignedIn ? "Signed in" : account.email;
       meta.append(name, email);
 
       const remove = document.createElement("button");
@@ -382,6 +407,16 @@ function render() {
       group.appendChild(row);
     }
     accountList.appendChild(group);
+  }
+  if (hiddenCount > 0 || othersOpen) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.className = "others";
+    button.type = "button";
+    button.dataset.others = "true";
+    button.textContent = othersOpen ? "Hide other sites" : `${hiddenCount} saved on other sites`;
+    item.appendChild(button);
+    accountList.appendChild(item);
   }
 }
 
@@ -402,12 +437,28 @@ async function onListClick(event) {
     return;
   }
 
+  if (event.target.closest("[data-others]")) {
+    othersOpen = !othersOpen;
+    render();
+    return;
+  }
   const button = event.target.closest(".account");
   if (!button || button.disabled || busy) {
     return;
   }
-  const account = (sites[button.dataset.site] || []).find((item) => item.email === button.dataset.email);
+  const account = (sites[button.dataset.site] || []).find((item) => item.email.toLowerCase() === button.dataset.email.toLowerCase());
   if (!account) {
+    setStatus("That person is no longer in the list.", "error");
+    return;
+  }
+  if (!account.password) {
+    moreOpen = true;
+    render();
+    accountForm.hidden = false;
+    accountForm.elements.username.value = account.username || "";
+    accountForm.elements.email.value = account.email;
+    accountForm.elements.password.focus();
+    setStatus(`Add a password for ${displayName(account)}.`, "error");
     return;
   }
   await switchTo(button.dataset.site, account);
@@ -416,19 +467,14 @@ async function onListClick(event) {
 async function switchTo(site, account) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.id || !odooTab || !odooTab.isOdoo || odooTab.origin !== site) {
-    setStatus("Open that site's Odoo tab, then choose the login.", "error");
+    setStatus(`Open ${siteLabel(site)} first, then choose ${displayName(account)}.`, "error");
     return;
   }
   busy = true;
   render();
-  setStatus(`Signing out and opening ${displayName(account)}…`);
+  setStatus(`Signing in as ${displayName(account)}…`);
   try {
-    const [injection] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: odooBridge,
-      args: ["switch", { email: account.email, password: account.password }],
-    });
-    const result = injection && injection.result;
+    const result = await runOnPage("switch", { email: account.email, password: account.password });
     if (!result || !result.ok) {
       busy = false;
       render();
@@ -488,13 +534,16 @@ function renderTools() {
   const isOdoo = Boolean(odooTab && odooTab.isOdoo);
   const isAdmin = Boolean(currentSession().isAdmin);
   const debug = debugValue();
-  odooTools.hidden = !isOdoo;
+  morePanel.hidden = !moreOpen;
+  moreButton.textContent = moreOpen ? "Done" : "More";
+  moreButton.setAttribute("aria-expanded", moreOpen ? "true" : "false");
+  debugSwitch.disabled = busy || !isOdoo;
   debugSwitch.dataset.state = debugModes(debug).includes("assets") ? "assets" : debugIsOn(debug) ? "on" : "off";
   debugSwitch.textContent = debugModes(debug).includes("assets") ? "Assets" : debugIsOn(debug) ? "Debug on" : "Debug";
   fetchButton.hidden = !isAdmin;
-  fetchButton.disabled = busy || !debugIsOn(debug);
+  fetchButton.disabled = busy || !isOdoo || !debugIsOn(debug);
   resetConfirmOk.disabled = busy;
-  fetchButton.title = debugIsOn(debug) ? "Fetch users into this site" : "Turn on debug mode first";
+  fetchButton.title = debugIsOn(debug) ? "Update people from Odoo" : "Turn debug on first";
   resetForm.hidden = !isAdmin;
   if (!isAdmin) {
     closeReset();
@@ -527,11 +576,7 @@ async function setDebug(mode) {
   if (!tab || !tab.id) {
     return;
   }
-  await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: odooBridge,
-    args: ["debug", { mode: mode }],
-  });
+  await runOnPage("debug", { mode: mode });
 }
 
 async function fetchUsers() {
@@ -553,12 +598,7 @@ async function fetchUsers() {
   render();
   setStatus("Fetching users…");
   try {
-    const [injection] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: odooBridge,
-      args: ["fetch", null],
-    });
-    const result = injection && injection.result;
+    const result = await runOnPage("fetch", null);
     if (!result || !result.ok) {
       busy = false;
       render();
@@ -641,12 +681,7 @@ async function confirmReset() {
   render();
   setStatus("Resetting passwords…");
   try {
-    const [injection] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: odooBridge,
-      args: ["reset", { password: password }],
-    });
-    const result = injection && injection.result;
+    const result = await runOnPage("reset", { password: password });
     if (!result || !result.ok) {
       busy = false;
       closeReset();
@@ -847,6 +882,10 @@ async function odooBridge(command, payload) {
     return { ok: false, error: "Email and password are required." };
   }
 
+  function leave(path) {
+    setTimeout(() => window.location.assign(path), 60);
+  }
+
   let db = null;
   const current = await readSession();
   if (current && current.db) {
@@ -867,28 +906,60 @@ async function odooBridge(command, payload) {
   } catch (error) {
     return { ok: false, error: "Could not sign out of the current Odoo session." };
   }
+  if (!loginHtml.includes("csrf_token")) {
+    try {
+      const loginPage = await fetch("/web/login", { credentials: "include", cache: "no-store" });
+      loginHtml = await loginPage.text();
+    } catch (error) {
+      leave("/web/login");
+      return { ok: false, error: "Could not open the Odoo login page." };
+    }
+  }
+  const csrfMatch = loginHtml.match(/name="csrf_token"\s+value="([^"]+)"/)
+    || loginHtml.match(/value="([^"]+)"\s+name="csrf_token"/);
+  if (!csrfMatch) {
+    leave("/web/login");
+    return { ok: false, error: "Could not open the Odoo login page." };
+  }
   if (!db) {
     db = readDatabase(loginHtml);
   }
   if (!db) {
+    leave("/web/login");
     return { ok: false, error: "Select a database in Odoo before switching users." };
   }
 
+  const body = new URLSearchParams();
+  body.set("csrf_token", csrfMatch[1]);
+  body.set("login", email);
+  body.set("password", password);
+  body.set("db", db);
+  body.set("redirect", "/web");
   try {
-    const result = await rpc("/web/session/authenticate", {
-      db: db,
-      login: email,
-      password: password,
+    const response = await fetch("/web/login", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      redirect: "follow",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
     });
-    if (!result || !result.uid) {
-      window.location.assign("/web/login");
-      return { ok: false, error: "Login failed. This account may require an extra verification step." };
+    const resultHtml = await response.text();
+    let stillOnLogin = false;
+    try {
+      stillOnLogin = new URL(response.url).pathname.replace(/\/$/, "") === "/web/login";
+    } catch (error) {
+      stillOnLogin = /\/web\/login/.test(response.url || "");
     }
-    window.location.assign("/web");
-    return { ok: true, name: result.name || email };
+    if (stillOnLogin) {
+      leave("/web/login");
+      const wrong = /wrong login\/password/i.test(resultHtml);
+      return { ok: false, error: wrong ? "Wrong email or password." : "Could not sign in as this person." };
+    }
   } catch (error) {
-    window.location.assign("/web/login");
-    const message = /access denied/i.test(error.message) ? "Wrong email or password." : error.message;
-    return { ok: false, error: message || "Login failed." };
+    leave("/web/login");
+    return { ok: false, error: "Could not sign in as this person." };
   }
+  leave("/web");
+  return { ok: true, name: email };
 }

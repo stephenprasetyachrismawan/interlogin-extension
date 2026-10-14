@@ -5,7 +5,7 @@
 <p align="center">interlogin by <a href="https://github.com/stephenprasetyachrismawan">stephenprasetyachrismawan</a></p>
 
 <p align="center">
-  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.0"><img alt="version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-714B67?style=for-the-badge"></a>
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.1"><img alt="version 1.2.1" src="https://img.shields.io/badge/version-1.2.1-714B67?style=for-the-badge"></a>
   <img alt="Manifest V3" src="https://img.shields.io/badge/manifest-V3-4C3146?style=for-the-badge">
   <img alt="Chrome and Edge" src="https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-1F6B3A?style=for-the-badge">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-C4A0C4?style=for-the-badge"></a>
@@ -33,7 +33,7 @@
 
 ## 📦 Install
 
-⬇️ Download [interlogin-1.2.0.zip](https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/download/v1.2.0/interlogin-1.2.0.zip) and unzip it.
+⬇️ Download [interlogin-1.2.1.zip](https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/download/v1.2.1/interlogin-1.2.1.zip) and unzip it.
 
 1. 🧭 Open `chrome://extensions` or `edge://extensions`.
 2. 🛠️ Turn on Developer mode.
@@ -44,17 +44,17 @@
 
 ## 🌐 Sites
 
-🏠 Each Odoo origin keeps its own list. The open tab is marked `this tab`, and only those buttons can sign in. 🔒 Other sites stay visible with their buttons off until that site is the active tab.
+🏠 Each Odoo origin keeps its own list. The panel shows the open site. 🔒 Other sites stay behind **N saved on other sites** until you open that list.
 
 ## ➕ Add a login
 
-On an Odoo tab, choose **Add**.
+On an Odoo tab, choose **More**, then **Add**.
 
 - 👤 Username is optional. When it is set, the list shows it above the email.
 - 📧 Email and password are required. Email is the Odoo login.
 - 💾 The account is stored for that site only.
 
-🔁 The same email on the same site replaces the stored password. ❌ The `×` on a row removes that account from that site. 🚫 A row with no password cannot sign in.
+🔁 The same email on the same site replaces the stored password. ❌ The `×` on a row removes that account from that site. 🔑 A row with no password asks you to add one.
 
 ## 🐞 Debug
 
