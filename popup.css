@@ -111,6 +111,12 @@ body {
   color: var(--ok);
 }
 
+#add-button[data-state="on"] {
+  background: var(--plum);
+  border-color: var(--plum-deep);
+  color: #fff;
+}
+
 .tool[data-state="assets"] {
   background: var(--stamp);
   border-color: #d7c3d1;

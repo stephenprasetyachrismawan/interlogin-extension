@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icons/icon128.png" width="96" alt="interlogin icon">
+</p>
+
 <h1 align="center">interlogin</h1>
 
 <p align="center">The open Odoo tab, signed in as someone else.</p>
@@ -5,7 +9,7 @@
 <p align="center">interlogin by <a href="https://github.com/stephenprasetyachrismawan">stephenprasetyachrismawan</a></p>
 
 <p align="center">
-  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.1"><img alt="version 1.2.1" src="https://img.shields.io/badge/version-1.2.1-714B67?style=for-the-badge"></a>
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.2"><img alt="version 1.2.2" src="https://img.shields.io/badge/version-1.2.2-714B67?style=for-the-badge"></a>
   <img alt="Manifest V3" src="https://img.shields.io/badge/manifest-V3-4C3146?style=for-the-badge">
   <img alt="Chrome and Edge" src="https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-1F6B3A?style=for-the-badge">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-C4A0C4?style=for-the-badge"></a>
@@ -26,14 +30,18 @@
 </p>
 
 <p align="center">
-  <img alt="interlogin, from the open site to reset" src="assets/interlogin.gif">
+  <img alt="interlogin, from this tab to reset" src="assets/interlogin.gif">
+</p>
+
+<p align="center">
+  <a href="assets/interlogin.mp4">Film · 1920×1080 · 60 fps</a>
 </p>
 
 👆 The panel sits under the extension icon. It signs out of the Odoo session on that tab and signs in as the account you pick. 🚫 Another website does nothing.
 
 ## 📦 Install
 
-⬇️ Download [interlogin-1.2.1.zip](https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/download/v1.2.1/interlogin-1.2.1.zip) and unzip it.
+⬇️ Download [interlogin-1.2.2.zip](https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/download/v1.2.2/interlogin-1.2.2.zip) and unzip it.
 
 1. 🧭 Open `chrome://extensions` or `edge://extensions`.
 2. 🛠️ Turn on Developer mode.
