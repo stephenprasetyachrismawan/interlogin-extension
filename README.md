@@ -1,27 +1,33 @@
 # interlogin
 
-The Odoo tab in front of you, signed in as someone else.
+The open Odoo tab, signed in as someone else.
 
 interlogin by [stephenprasetyachrismawan](https://github.com/stephenprasetyachrismawan)
 
-Each Odoo site keeps its own logins. Add one from the panel, or import a JSON file. Pick a name on the site that is open. interlogin signs out of that session, signs in as that account, and opens `/web`.
+<p align="center">
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/tag/v1.2.0"><img alt="version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-714B67"></a>
+  <img alt="Manifest V3" src="https://img.shields.io/badge/manifest-V3-4C3146">
+  <img alt="Chrome and Edge" src="https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-1F6B3A">
+  <a href="https://github.com/stephenprasetyachrismawan/interlogin-extension/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/stephenprasetyachrismawan/interlogin-extension?color=714B67"></a>
+</p>
 
-```
-interlogin                     Add  Import
-Administrator · mydb
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#sites">Sites</a> ·
+  <a href="#add-a-login">Add a login</a> ·
+  <a href="#debug">Debug</a> ·
+  <a href="#fetch">Fetch</a> ·
+  <a href="#reset">Reset</a> ·
+  <a href="#json">JSON</a>
+</p>
 
-odoo.example.com · this tab
-AD   Administrator
-     admin@example.com · current
+![interlogin, from the open site to reset](assets/interlogin.gif)
 
-other.odoo.com
-DU   Demo User
-     demo@example.com
-```
+The panel sits under the extension icon. It signs out of the Odoo session on that tab and signs in as the account you pick. Another website does nothing.
 
 ## Install
 
-Download [interlogin-1.1.0.zip](https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/download/v1.1.0/interlogin-1.1.0.zip) and unzip it.
+Download [interlogin-1.2.0.zip](https://github.com/stephenprasetyachrismawan/interlogin-extension/releases/download/v1.2.0/interlogin-1.2.0.zip) and unzip it.
 
 1. Open `chrome://extensions` or `edge://extensions`.
 2. Turn on Developer mode.
@@ -32,21 +38,46 @@ To use this repository directly, load this folder the same way.
 
 ## Sites
 
-Accounts are grouped by site. The open Odoo tab is marked `this tab`, and only those buttons can sign in. Other sites stay in the list, with their buttons off, until that site is the active tab.
+Each Odoo origin keeps its own list. The open tab is marked `this tab`, and only those buttons can sign in. Other sites stay visible with their buttons off until that site is the active tab.
 
 ## Add a login
 
 On an Odoo tab, choose **Add**.
 
-- Username is optional. When it is filled in, the list shows it above the email.
+- Username is optional. When it is set, the list shows it above the email.
 - Email and password are required. Email is the Odoo login.
-- The account is saved for that site only.
+- The account is stored for that site only.
 
-Saving the same email on the same site replaces the stored password. The `×` on a row removes that account from that site.
+The same email on the same site replaces the stored password. The `×` on a row removes that account from that site. A row with no password cannot sign in.
 
-## JSON import
+## Debug
 
-Import is optional. `email` and `password` are required. `username` is optional. `site` chooses the group. Without `site`, the account is added to the Odoo tab that is open.
+One switch on an Odoo tab.
+
+- Click once: debug mode on, or back off. If assets debug is on, one click returns to ordinary debug.
+- Click twice: assets debug.
+
+The Odoo tab reloads so the session actually changes. Fetch stays disabled until debug mode is on.
+
+## Fetch
+
+Fetch is shown only when the signed-in account can manage every user (`base.group_erp_manager` in Odoo 17). It also requires debug mode.
+
+Fetch reads `id`, name, and login for the users that account can see, including archived ones, and updates the cache for that site.
+
+- A saved email keeps its password.
+- The Odoo name and id replace the stored name and id.
+- A user that was not in the list is added with no password.
+
+## Reset
+
+The same manager account can set one new password on every user it can manage: internal, portal, and public.
+
+The panel asks first. Nothing is written until **Reset all passwords** is clicked in the confirmation. The account you are using is included, so Odoo signs that session out. Passwords already cached for that site are updated to the new value when the reset succeeds.
+
+## JSON
+
+Import is optional. `email` and `password` are required. `username` is optional. `site` chooses the group. Without `site`, the account joins the Odoo tab that is open.
 
 ```json
 [
@@ -65,7 +96,7 @@ Import is optional. `email` and `password` are required. `username` is optional.
 ]
 ```
 
-`users.example.json` is a starter. Passwords stay in this browser's extension storage. The database comes from the open Odoo tab, so the file does not need one.
+`users.example.json` is a starter. Passwords stay in this browser's extension storage. The database comes from the open Odoo tab.
 
 ## Sign-in
 
